@@ -1,31 +1,28 @@
-# convert_data.py
-import pickle
-import json
+import tensorflow as tf
+from tensorflow.keras.applications.resnet50 import ResNet50
+from tensorflow.keras.layers import GlobalMaxPooling2D
 
-print("Starting conversion of .pkl files to .json...")
+print("Loading original Keras model...")
+# Recreate the exact same model structure you had before
+base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+base_model.trainable = False
+feature_extractor_model = tf.keras.Sequential([
+    base_model,
+    GlobalMaxPooling2D()
+])
 
-# Convert embeddings.pkl
-try:
-    with open('embeddings.pkl', 'rb') as f_pkl:
-        embeddings_data = pickle.load(f_pkl)
-    with open('embeddings.json', 'w') as f_json:
-        json.dump(embeddings_data, f_json)
-    print("✅ embeddings.pkl successfully converted to embeddings.json")
-except FileNotFoundError:
-    print("Error: embeddings.pkl not found.")
-except Exception as e:
-    print(f"An error occurred: {e}")
+print("Converting model to TensorFlow Lite...")
+# Create a TFLite converter from the Keras model
+converter = tf.lite.TFLiteConverter.from_keras_model(feature_extractor_model)
 
-# Convert filenames.pkl
-try:
-    with open('filenames.pkl', 'rb') as f_pkl:
-        filenames_data = pickle.load(f_pkl)
-    with open('filenames.json', 'w') as f_json:
-        json.dump(filenames_data, f_json)
-    print("✅ filenames.pkl successfully converted to filenames.json")
-except FileNotFoundError:
-    print("Error: filenames.pkl not found.")
-except Exception as e:
-    print(f"An error occurred: {e}")
+# Optional: Apply optimizations
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
-print("\nConversion complete.")
+# Convert the model
+tflite_model = converter.convert()
+
+# Save the TFLite model to a file
+with open('feature_extractor.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+print("Successfully converted and saved as 'feature_extractor.tflite'")

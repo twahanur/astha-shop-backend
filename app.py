@@ -10,7 +10,6 @@ from tensorflow.keras.layers import GlobalMaxPooling2D
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from sklearn.neighbors import NearestNeighbors
 import pandas as pd
-from transformers import pipeline
 from flask_cors import CORS # No need for cross_origin decorator if CORS is global
 
 # --- Global Initialization (Loaded once at app startup) ---
@@ -78,16 +77,6 @@ except FileNotFoundError:
 except Exception as e:
     print(f"Error loading grandfinaleX.csv: {e}")
     df_products = pd.DataFrame()
-
-
-# Load Sentiment Analysis Pipeline (once at startup)
-print("Loading sentiment analysis pipeline...")
-try:
-    sentiment_pipeline = pipeline("sentiment-analysis")
-    print("Sentiment analysis pipeline loaded.")
-except Exception as e:
-    print(f"Error loading sentiment pipeline: {e}")
-    sentiment_pipeline = None # Handle cases where pipeline might not be available
 
 
 # --- Flask App Configuration ---
@@ -222,9 +211,7 @@ def search():
     for word in query_keywords:
         match_mask = temp_df[SEARCH_COLUMNS].apply(lambda row: row.str.contains(word, na=False), axis=1).any(axis=1)
         temp_df.loc[match_mask, 'match_score'] += 1
-
     result_df = temp_df[temp_df['match_score'] > 0]
-
     if 'id' in result_df.columns:
         result_df = result_df.sort_values(by='match_score', ascending=False)
         # Ensure 'id' column is numeric for conversion to int
@@ -235,25 +222,6 @@ def search():
 
     print("Matched IDs:", top_ids)
     return jsonify({'searchResult': top_ids})
-
-
-@app.route('/sentiment', methods=['GET'])
-def sentiment_analysis(): # Renamed function to avoid conflict with imported pipeline variable
-    text = request.args.get('text') # Get text from query parameter
-    if not text:
-        return jsonify({'error': 'Missing "text" parameter for sentiment analysis'}), 400
-
-    if not sentiment_pipeline:
-        return jsonify({'error': 'Sentiment analysis service is not initialized.'}), 503
-
-    try:
-        result = sentiment_pipeline(text) # Pass the actual text
-        print(f"Sentiment for '{text}': {result}")
-        return jsonify({'sentiment_result': result})
-    except Exception as e:
-        print(f"Error during sentiment analysis: {e}")
-        return jsonify({'error': f'An error occurred during sentiment analysis: {str(e)}'}), 500
-
 
 if __name__ == '__main__':
     # In a production environment, set debug=False and use a production WSGI server
